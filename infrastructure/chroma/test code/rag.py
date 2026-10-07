@@ -1,34 +1,32 @@
 # Install dependencies:
-# pip install chromadb sentence-transformers transformers accelerate torch
+# pip install FlagEmbedding chromadb transformers accelerate torch
 
 import uuid
 import chromadb
 import torch
 
-from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # ==========================================================
-# 0. Load Nomic Embedding Model
+# 0. Load Qwen3 Embedding Model (FlagEmbedding)
 # ==========================================================
 
-EMBED_MODEL = "nomic-ai/nomic-embed-text-v1.5"
+print("Loading Qwen3 embedding model...")
 
-print("Loading embedding model...")
-
-embed_model = SentenceTransformer(
-    EMBED_MODEL,
-    trust_remote_code=True
-)
+# use_fp16=True uses FP16 for faster computation on CUDA GPUs
+embed_model = BGEM3FlagModel("BAAI/Qwen3", use_fp16=True)
 
 def embed_text_local(texts):
     """
-    Generate embeddings locally using Nomic v1.5
+    Generate dense embeddings locally using Qwen3 via FlagEmbedding
     """
-    return embed_model.encode(
+    # encode returns a dict containing 'dense_vecs', 'lexical_weights', and 'colbert_vecs'
+    output = embed_model.encode(
         texts,
-        normalize_embeddings=True
-    ).tolist()
+        batch_size=12,
+        max_length=8192  # Qwen3 supports long contexts up to 8192 tokens
+    )
+    return output["dense_vecs"].tolist()
 
 # ==========================================================
 # 1. Load Local LLM
@@ -65,20 +63,12 @@ collection = client.get_or_create_collection(
 documents = [
     "Python is a popular programming language for AI and data science.",
     "ChromaDB is a vector database for storing and retrieving embeddings.",
-    "The nomic-embed-text model generates embeddings for text.",
+    "The Qwen3 model supports dense, sparse, and multi-vector representations.",
     "Qwen is a large language model developed for multilingual tasks."
 ]
 
-# Add search_document prefix (recommended for Nomic)
-
-documents_for_embedding = [
-    f"search_document: {doc}"
-    for doc in documents
-]
-
-embeddings = embed_text_local(
-    documents_for_embedding
-)
+# Generate dense embeddings directly without prefixed prompts
+embeddings = embed_text_local(documents)
 
 # Optional: clear collection during testing
 # collection.delete(where={})
@@ -97,9 +87,7 @@ print("✅ Documents indexed in ChromaDB.")
 
 def retrieve(query, top_k=2):
 
-    query_embedding = embed_text_local(
-        [f"search_query: {query}"]
-    )
+    query_embedding = embed_text_local([query])
 
     results = collection.query(
         query_embeddings=query_embedding,
