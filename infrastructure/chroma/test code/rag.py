@@ -1,45 +1,55 @@
 # Install dependencies:
-# pip install FlagEmbedding chromadb transformers accelerate torch
+# pip install sentence-transformers chromadb transformers accelerate torch
 
 import uuid
 import chromadb
 import torch
 
+from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # ==========================================================
-# 0. Load Qwen3 Embedding Model (FlagEmbedding)
+# 0. Load Local Qwen3 Embedding Model
 # ==========================================================
+
+# Point to your local downloaded Qwen3 directory
+QWEN_EMBED_PATH = r"C:\Softwares\LLMS\Qwen3-embed"
 
 print("Loading Qwen3 embedding model...")
 
-# use_fp16=True uses FP16 for faster computation on CUDA GPUs
-embed_model = BGEM3FlagModel("BAAI/Qwen3", use_fp16=True)
+embed_model = SentenceTransformer(
+    QWEN_EMBED_PATH,
+    trust_remote_code=True,
+    model_kwargs={"dtype": torch.float16}
+)
 
-def embed_text_local(texts):
+def embed_text_local(texts, is_query=False):
     """
-    Generate dense embeddings locally using Qwen3 via FlagEmbedding
+    Generate dense embeddings locally using Qwen3-Embedding-0.6B
     """
-    # encode returns a dict containing 'dense_vecs', 'lexical_weights', and 'colbert_vecs'
-    output = embed_model.encode(
+    # Qwen3 retrieval benefits from using prompt_name="query" for search queries
+    kwargs = {"prompt_name": "query"} if is_query else {}
+    
+    embeddings = embed_model.encode(
         texts,
+        normalize_embeddings=True,
         batch_size=12,
-        max_length=8192  # Qwen3 supports long contexts up to 8192 tokens
+        **kwargs
     )
-    return output["dense_vecs"].tolist()
+    return embeddings.tolist()
 
 # ==========================================================
 # 1. Load Local LLM
 # ==========================================================
 
-MODEL_PATH = r"C:\Softwares\LLMS\deepseek-r1-distill-qwen-1.5b"
+LLM_PATH = r"C:\Softwares\LLMS\deepseek-r1-distill-qwen-1.5b"
 
 print("Loading LLM...")
 
-llm_tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+llm_tokenizer = AutoTokenizer.from_pretrained(LLM_PATH)
 
 llm_model = AutoModelForCausalLM.from_pretrained(
-    MODEL_PATH,
+    LLM_PATH,
     torch_dtype=torch.float16,
     device_map="auto"
 )
@@ -67,8 +77,8 @@ documents = [
     "Qwen is a large language model developed for multilingual tasks."
 ]
 
-# Generate dense embeddings directly without prefixed prompts
-embeddings = embed_text_local(documents)
+# Generate dense embeddings for documents
+embeddings = embed_text_local(documents, is_query=False)
 
 # Optional: clear collection during testing
 # collection.delete(where={})
@@ -87,7 +97,8 @@ print("✅ Documents indexed in ChromaDB.")
 
 def retrieve(query, top_k=2):
 
-    query_embedding = embed_text_local([query])
+    # Pass is_query=True to apply Qwen3's recommended query prompt structure
+    query_embedding = embed_text_local([query], is_query=True)
 
     results = collection.query(
         query_embeddings=query_embedding,
