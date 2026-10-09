@@ -7,7 +7,7 @@ from ai.agents.base import BaseGenerator
 
 class OllamaGenerator(BaseGenerator):
     """
-    Ollama API Client Execution with system-level installation & model checks.
+    Ollama API Client Execution with strict LLM model resolution.
     """
     def __init__(self, model_name: str | None, base_url: str):
         self.client = ollama.Client(host=base_url)
@@ -24,8 +24,7 @@ class OllamaGenerator(BaseGenerator):
             print("👉 Please download and install Ollama from: https://ollama.com/download")
         else:
             print(f"❌ ERROR: Ollama is installed but the server is not running at '{self.client._host}'.")
-            print("👉 Please start the Ollama service by running in your terminal:")
-            print("   ollama serve")
+            print("👉 Please start the Ollama service by running in your terminal:\n   ollama serve")
         print("=" * 60 + "\n")
         sys.exit(1)
 
@@ -39,31 +38,44 @@ class OllamaGenerator(BaseGenerator):
         except Exception as e:
             self._verify_ollama_installation(e)
 
-        if not installed_models:
-            print("\n" + "=" * 60)
-            print("❌ ERROR: No LLM models found in your local Ollama instance.")
-            print("👉 Please download an LLM by running:\n")
-            print("   ollama pull qwen2.5:7b\n")
-            print("   ollama pull qwen3:8b\n")
-            print("=" * 60 + "\n")
-            sys.exit(1)
+        # Separate embedding-only models from generative LLM models
+        embed_keywords = ["embed", "bge", "minilm", "nomic-embed"]
+        llm_candidates = [m for m in installed_models if not any(kw in m.lower() for kw in embed_keywords)]
 
-        # 1. Match specified model
+        # 1. Check if explicitly specified model is available
         if specified_model:
             if any(specified_model in m for m in installed_models):
+                # Ensure specified model isn't an embedding model
+                if any(kw in specified_model.lower() for kw in embed_keywords):
+                    print("\n" + "=" * 60)
+                    print(f"❌ ERROR: '{specified_model}' is an embedding-only model and cannot generate text.")
+                    print("👉 Please specify or pull a generative LLM model (e.g., `ollama pull qwen2.5:7b`).")
+                    print("=" * 60 + "\n")
+                    sys.exit(1)
                 return specified_model
             print(f"⚠️ Specified LLM model '{specified_model}' not found in installed models.")
 
-        # 2. Look for LLM keyword match
-        llm_keywords = ["qwen", "llama", "deepseek", "mistral", "gemma", "phi"]
-        for model in installed_models:
-            if any(kw in model.lower() for kw in llm_keywords) and "embed" not in model.lower():
+        # 2. Look for explicit LLM keyword matches in filtered LLM candidates
+        llm_keywords = ["qwen", "llama", "deepseek", "mistral", "gemma", "phi", "vicuna"]
+        for model in llm_candidates:
+            if any(kw in model.lower() for kw in llm_keywords):
                 return model
 
-        # 3. Fallback to first available model
-        fallback = installed_models[0]
-        print(f"ℹ️ Falling back to installed model: '{fallback}'")
-        return fallback
+        # 3. If candidates exist after filtering out embeds, use the first non-embed candidate
+        if llm_candidates:
+            fallback = llm_candidates[0]
+            print(f"ℹ️ Falling back to installed LLM model: '{fallback}'")
+            return fallback
+
+        # 4. If ONLY embedding models exist, exit cleanly with a clear command
+        print("\n" + "=" * 60)
+        print("❌ ERROR: No text generation LLM models found in your local Ollama instance.")
+        print("   (Only embedding models like 'nomic-embed-text' were found).")
+        print("👉 Please download a text generation LLM by running:")
+        print("   ollama pull qwen2.5:7b")
+        print("   (or: `ollama pull deepseek-r1:1.5b`)")
+        print("=" * 60 + "\n")
+        sys.exit(1)
 
     def generate_answer(self, query: str, context_documents: List[str]) -> Dict[str, Any]:
         context = "\n---\n".join(context_documents)
