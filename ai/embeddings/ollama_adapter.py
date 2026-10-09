@@ -51,23 +51,24 @@ class OllamaEmbedder(BaseEmbedder):
         except Exception as e:
             self._verify_ollama_installation(e)
 
-        if not installed_models:
-            print("\n" + "=" * 60)
-            print("❌ ERROR: No models found in your local Ollama instance.")
-            print("👉 Please download an embedding model by running:\n   ollama pull nomic-embed-text")
-            print("=" * 60 + "\n")
-            sys.exit(1)
-
         # 1. Check specified model
         if specified_model and any(specified_model in m for m in installed_models):
             return specified_model
 
-        # 2. Prioritize dedicated embedding models via metadata inspection
+        # 2. Search for dedicated embedding models
         for model in installed_models:
             if self._is_dedicated_embedding_model(model):
                 return model
 
-        # 3. Fallback: Standard generative LLMs in Ollama can compute embeddings
+        # 3. Strict Exit: Reject general LLMs if no dedicated embedder is installed
+        print("\n" + "=" * 60)
+        print("❌ ERROR: No dedicated embedding model found in your local Ollama instance.")
+        print("👉 Please download an embedding model by running:")
+        print("   ollama pull nomic-embed-text")
+        print("=" * 60 + "\n")
+        sys.exit(1)
+
+        # 4. Fallback: Standard generative LLMs in Ollama can compute embeddings
         return installed_models[0]
 
     def embed_documents(self, documents: List[str]) -> List[List[float]]:
