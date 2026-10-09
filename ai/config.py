@@ -12,7 +12,7 @@ class ExecutionProvider(str, Enum):
 class Config:
     # --- GLOBAL PROVIDER TOGGLE ---
     # Switch between ExecutionProvider.LOCAL and ExecutionProvider.OLLAMA
-    PROVIDER: ExecutionProvider = ExecutionProvider.LOCAL
+    PROVIDER: ExecutionProvider = ExecutionProvider.OLLAMA
 
     # --- LOCAL TRANSFORMERS / PYTORCH PATHS ---
     LOCAL_EMBED_PATH: str = r"C:\Softwares\LLMS\Qwen3-embed"
@@ -21,7 +21,7 @@ class Config:
     # --- OLLAMA SERVICE CONFIGURATION ---
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text"  # e.g., nomic-embed-text, qwen3-embedding
-    OLLAMA_LLM_MODEL: str = "qwen2.5:7b"          # e.g., qwen2.5:7b, deepseek-r1:1.5b
+    OLLAMA_LLM_MODEL: str = "qwen3:8b"          # e.g., qwen3:8b,qwen2.5:7b, deepseek-r1:1.5b
 
     # --- VECTOR DATABASE CONFIGURATION ---
     CHROMA_PERSIST_DIR: str = str(BASE_DIR / "infrastructure" / "chroma" / "chroma_store")

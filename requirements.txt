@@ -1,0 +1,4 @@
+torch
+chromadb
+ollama
+sentence_transformers

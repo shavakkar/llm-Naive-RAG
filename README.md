@@ -4,5 +4,10 @@ PROVIDER: ExecutionProvider = ExecutionProvider.LOCAL
 ExecutionProvider.LOCAL -> Local LLMs
 ExecutionProvider.OLLAMA -> Ollama
 
+To update and utilise Local LLMs & Embed models;
+Change the path of these variables:
+LOCAL_EMBED_PATH
+LOCAL_LLM_PATH
+
 To run the code:
 python test_rag.py
