@@ -1,6 +1,7 @@
 import os
 from enum import Enum
 from pathlib import Path
+import ollama
 
 # Workspace Root Directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -8,6 +9,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 class ExecutionProvider(str, Enum):
     LOCAL = "local"      # Local PyTorch + Hugging Face / SentenceTransformers
     OLLAMA = "ollama"    # Ollama REST Client API
+
+def get_installed_ollama_models(base_url: str) -> list[str]:
+    """Helper to safely fetch installed model names from Ollama."""
+    try:
+        client = ollama.Client(host=base_url)
+        response = client.list()
+        # ollama python client returns objects with .model or dicts with 'name' / 'model'
+        models = []
+        for item in response.get("models", []):
+            if isinstance(item, dict):
+                models.append(item.get("model") or item.get("name"))
+            else:
+                models.append(getattr(item, "model", getattr(item, "name", str(item))))
+        return [m for m in models if m]
+    except Exception:
+        return []
 
 class Config:
     # --- GLOBAL PROVIDER TOGGLE ---
@@ -20,8 +37,10 @@ class Config:
 
     # --- OLLAMA SERVICE CONFIGURATION ---
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_EMBED_MODEL: str = "nomic-embed-text"  # e.g., nomic-embed-text, qwen3-embedding
-    OLLAMA_LLM_MODEL: str = "qwen3:8b"          # e.g., qwen3:8b,qwen2.5:7b, deepseek-r1:1.5b
+    
+    # Optional explicitly defined models (leave as None to auto-detect from user's installed models)
+    OLLAMA_EMBED_MODEL: str | None = None
+    OLLAMA_LLM_MODEL: str | None = None
 
     # --- VECTOR DATABASE CONFIGURATION ---
     CHROMA_PERSIST_DIR: str = str(BASE_DIR / "infrastructure" / "chroma" / "chroma_store")
