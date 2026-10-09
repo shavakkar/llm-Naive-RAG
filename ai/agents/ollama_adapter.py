@@ -7,7 +7,7 @@ from ai.agents.base import BaseGenerator
 
 class OllamaGenerator(BaseGenerator):
     """
-    Ollama API Client Execution with strict LLM model resolution.
+    Ollama API Client Execution with bulletproof model resolution via metadata inspection.
     """
     def __init__(self, model_name: str | None, base_url: str):
         self.client = ollama.Client(host=base_url)
@@ -28,6 +28,28 @@ class OllamaGenerator(BaseGenerator):
         print("=" * 60 + "\n")
         sys.exit(1)
 
+    def _is_embedding_only_model(self, model_name: str) -> bool:
+        """
+        Queries Ollama API metadata to inspect model architecture parameters.
+        """
+        try:
+            info = self.client.show(model_name)
+            details = info.get("details", {})
+            family = details.get("family", "").lower()
+            
+            # Check GGUF model families dedicated solely to embeddings
+            if family in ["bert", "nomic-bert", "xlm-roberta", "colbert"]:
+                return True
+                
+            modelfile = info.get("modelfile", "").lower()
+            if "embedding_only" in modelfile or "embedding" in family:
+                return True
+
+            return False
+        except Exception:
+            # Fallback to string check if API metadata inspect fails
+            return any(kw in model_name.lower() for kw in ["embed", "bge", "minilm"])
+
     def _resolve_model(self, specified_model: str | None) -> str:
         try:
             installed_response = self.client.list()
@@ -38,42 +60,41 @@ class OllamaGenerator(BaseGenerator):
         except Exception as e:
             self._verify_ollama_installation(e)
 
-        # Separate embedding-only models from generative LLM models
-        embed_keywords = ["embed", "bge", "minilm", "nomic-embed"]
-        llm_candidates = [m for m in installed_models if not any(kw in m.lower() for kw in embed_keywords)]
+        # Categorize installed models using architecture metadata
+        llm_candidates = []
+        embed_models = []
 
-        # 1. Check if explicitly specified model is available
+        for model in installed_models:
+            if self._is_embedding_only_model(model):
+                embed_models.append(model)
+            else:
+                llm_candidates.append(model)
+
+        # 1. Validate specified model
         if specified_model:
             if any(specified_model in m for m in installed_models):
-                # Ensure specified model isn't an embedding model
-                if any(kw in specified_model.lower() for kw in embed_keywords):
+                if specified_model in embed_models or self._is_embedding_only_model(specified_model):
                     print("\n" + "=" * 60)
                     print(f"❌ ERROR: '{specified_model}' is an embedding-only model and cannot generate text.")
-                    print("👉 Please specify or pull a generative LLM model (e.g., `ollama pull qwen2.5:7b`).")
+                    print("👉 Please specify or pull a generative LLM (e.g., `ollama pull qwen2.5:7b`).")
                     print("=" * 60 + "\n")
                     sys.exit(1)
                 return specified_model
-            print(f"⚠️ Specified LLM model '{specified_model}' not found in installed models.")
 
-        # 2. Look for explicit LLM keyword matches in filtered LLM candidates
-        llm_keywords = ["qwen", "llama", "deepseek", "mistral", "gemma", "phi", "vicuna"]
-        for model in llm_candidates:
-            if any(kw in model.lower() for kw in llm_keywords):
-                return model
-
-        # 3. If candidates exist after filtering out embeds, use the first non-embed candidate
+        # 2. Select first valid LLM candidate
         if llm_candidates:
-            fallback = llm_candidates[0]
-            print(f"ℹ️ Falling back to installed LLM model: '{fallback}'")
-            return fallback
+            selected = llm_candidates[0]
+            if specified_model:
+                print(f"⚠️ Specified model '{specified_model}' not found. Auto-selecting LLM: '{selected}'")
+            return selected
 
-        # 4. If ONLY embedding models exist, exit cleanly with a clear command
+        # 3. Handle zero-LLM edge case cleanly
         print("\n" + "=" * 60)
         print("❌ ERROR: No text generation LLM models found in your local Ollama instance.")
-        print("   (Only embedding models like 'nomic-embed-text' were found).")
+        if embed_models:
+            print(f"   (Detected embedding-only models: {embed_models}).")
         print("👉 Please download a text generation LLM by running:")
         print("   ollama pull qwen2.5:7b")
-        print("   (or: `ollama pull deepseek-r1:1.5b`)")
         print("=" * 60 + "\n")
         sys.exit(1)
 

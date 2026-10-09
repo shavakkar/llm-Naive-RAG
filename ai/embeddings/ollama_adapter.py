@@ -6,7 +6,7 @@ from ai.embeddings.base import BaseEmbedder
 
 class OllamaEmbedder(BaseEmbedder):
     """
-    Ollama REST Client Execution with system-level installation & model checks.
+    Ollama REST Client Execution with metadata-verified model resolution.
     """
     def __init__(self, model_name: str | None, base_url: str):
         self.client = ollama.Client(host=base_url)
@@ -23,10 +23,23 @@ class OllamaEmbedder(BaseEmbedder):
             print("👉 Please download and install Ollama from: https://ollama.com/download")
         else:
             print(f"❌ ERROR: Ollama is installed but the server is not running at '{self.client._host}'.")
-            print("👉 Please start the Ollama service by running in your terminal:")
-            print("   ollama serve")
+            print("👉 Please start the Ollama service by running in your terminal:\n   ollama serve")
         print("=" * 60 + "\n")
         sys.exit(1)
+
+    def _is_dedicated_embedding_model(self, model_name: str) -> bool:
+        """
+        Inspects model metadata to prioritize dedicated embedding models.
+        """
+        try:
+            info = self.client.show(model_name)
+            details = info.get("details", {})
+            family = details.get("family", "").lower()
+            modelfile = info.get("modelfile", "").lower()
+            
+            return family in ["bert", "nomic-bert", "xlm-roberta", "colbert"] or "embedding" in modelfile
+        except Exception:
+            return any(kw in model_name.lower() for kw in ["embed", "bge", "nomic", "minilm"])
 
     def _resolve_model(self, specified_model: str | None) -> str:
         try:
@@ -41,27 +54,21 @@ class OllamaEmbedder(BaseEmbedder):
         if not installed_models:
             print("\n" + "=" * 60)
             print("❌ ERROR: No models found in your local Ollama instance.")
-            print("👉 Please download an embedding model by running:")
-            print("   ollama pull nomic-embed-text")
+            print("👉 Please download an embedding model by running:\n   ollama pull nomic-embed-text")
             print("=" * 60 + "\n")
             sys.exit(1)
 
-        # 1. Match specified model
-        if specified_model:
-            if any(specified_model in m for m in installed_models):
-                return specified_model
-            print(f"⚠️ Specified embed model '{specified_model}' not found in installed models.")
+        # 1. Check specified model
+        if specified_model and any(specified_model in m for m in installed_models):
+            return specified_model
 
-        # 2. Look for embedding keyword match
-        embedding_keywords = ["embed", "bge", "nomic", "minilm"]
+        # 2. Prioritize dedicated embedding models via metadata inspection
         for model in installed_models:
-            if any(kw in model.lower() for kw in embedding_keywords):
+            if self._is_dedicated_embedding_model(model):
                 return model
 
-        # 3. Fallback to first available model
-        fallback = installed_models[0]
-        print(f"ℹ️ No dedicated embedding model detected. Falling back to installed model: '{fallback}'")
-        return fallback
+        # 3. Fallback: Standard generative LLMs in Ollama can compute embeddings
+        return installed_models[0]
 
     def embed_documents(self, documents: List[str]) -> List[List[float]]:
         response = self.client.embed(model=self.model_name, input=documents)
