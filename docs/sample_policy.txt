@@ -1,0 +1,4 @@
+Enterprise Access Control Policy
+
+All employees must authenticate using two-factor authentication (2FA).
+Access logs are retained in ChromaDB for compliance auditing for up to 90 days.
