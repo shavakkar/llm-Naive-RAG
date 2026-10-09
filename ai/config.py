@@ -1,30 +1,49 @@
-import os
+import sys
 from enum import Enum
 from pathlib import Path
 import ollama
 
-# Workspace Root Directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class ExecutionProvider(str, Enum):
-    LOCAL = "local"      # Local PyTorch + Hugging Face / SentenceTransformers
-    OLLAMA = "ollama"    # Ollama REST Client API
+    LOCAL = "local"
+    OLLAMA = "ollama"
 
-def get_installed_ollama_models(base_url: str) -> list[str]:
-    """Helper to safely fetch installed model names from Ollama."""
+def get_categorized_ollama_models(base_url: str = "http://localhost:11434") -> dict:
+    """
+    Queries Ollama API and categorizes installed models into 'embedders' and 'generators'.
+    """
     try:
         client = ollama.Client(host=base_url)
         response = client.list()
-        # ollama python client returns objects with .model or dicts with 'name' / 'model'
-        models = []
-        for item in response.get("models", []):
-            if isinstance(item, dict):
-                models.append(item.get("model") or item.get("name"))
-            else:
-                models.append(getattr(item, "model", getattr(item, "name", str(item))))
-        return [m for m in models if m]
+        
+        models = [
+            m.get("model") if isinstance(m, dict) else getattr(m, "model", getattr(m, "name", str(m)))
+            for m in response.get("models", [])
+        ]
+        
+        embedders = []
+        generators = []
+
+        for model_name in models:
+            try:
+                info = client.show(model_name)
+                family = info.get("details", {}).get("family", "").lower()
+                modelfile = info.get("modelfile", "").lower()
+                
+                if family in ["bert", "nomic-bert", "xlm-roberta", "colbert"] or "embedding" in modelfile:
+                    embedders.append(model_name)
+                else:
+                    generators.append(model_name)
+            except Exception:
+                if any(kw in model_name.lower() for kw in ["embed", "bge", "nomic", "minilm"]):
+                    embedders.append(model_name)
+                else:
+                    generators.append(model_name)
+
+        return {"embedders": embedders, "generators": generators}
     except Exception:
-        return []
+        return {"embedders": [], "generators": []}
 
 class Config:
     # --- GLOBAL PROVIDER TOGGLE ---
