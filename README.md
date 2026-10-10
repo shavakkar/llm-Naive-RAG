@@ -9,5 +9,8 @@ Change the path of these variables:
 LOCAL_EMBED_PATH
 LOCAL_LLM_PATH
 
+Create .env file and add;
+RAG_PROVIDER=local
+
 To run the code:
 python test_rag.py
