@@ -1,3 +1,4 @@
+import os
 import sys
 from enum import Enum
 from pathlib import Path
@@ -48,7 +49,9 @@ def get_categorized_ollama_models(base_url: str = "http://localhost:11434") -> d
 class Config:
     # --- GLOBAL PROVIDER TOGGLE ---
     # Switch between ExecutionProvider.LOCAL and ExecutionProvider.OLLAMA
-    PROVIDER: ExecutionProvider = ExecutionProvider.OLLAMA
+    PROVIDER: ExecutionProvider = ExecutionProvider(
+        os.getenv("RAG_PROVIDER", ExecutionProvider.LOCAL.value).lower()
+    )
 
     # --- LOCAL TRANSFORMERS / PYTORCH PATHS ---
     LOCAL_EMBED_PATH: str = r"C:\Softwares\LLMS\Qwen3-embed"

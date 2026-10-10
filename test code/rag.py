@@ -50,7 +50,7 @@ llm_tokenizer = AutoTokenizer.from_pretrained(LLM_PATH)
 
 llm_model = AutoModelForCausalLM.from_pretrained(
     LLM_PATH,
-    torch_dtype=torch.float16,
+    dtype=torch.float16,
     device_map="auto"
 )
 
