@@ -9,12 +9,13 @@ class ChromaVectorStore:
     automatic directory creation, metadata tracking, and distance scoring.
     """
     def __init__(self, persist_dir: str, collection_name: str):
-        self.persist_path = Path(persist_dir)
+        self.persist_path = Path(persist_dir).resolve()
         
-        # 1. Guarantee the directory structure exists on disk
+        # 1. Force directory creation inside project folder
         self.persist_path.mkdir(parents=True, exist_ok=True)
+        print(f"[ChromaVectorStore] Database path: '{self.persist_path}'")
 
-        # 2. Initialize Chroma persistent client
+        # 2. Connect persistent client using absolute path string
         self.client = chromadb.PersistentClient(path=str(self.persist_path))
         self.collection = self.client.get_or_create_collection(name=collection_name)
 
@@ -23,7 +24,7 @@ class ChromaVectorStore:
         Stores document chunks and embeddings. Force-persists to disk.
         """
         if not documents or not embeddings:
-            print("⚠️ [ChromaVectorStore] No documents or embeddings provided to store.")
+            print("⚠️ [ChromaVectorStore] No documents or embeddings to store.")
             return
 
         ids = [str(uuid.uuid4()) for _ in documents]
@@ -36,7 +37,7 @@ class ChromaVectorStore:
             metadatas=metadatas,
             embeddings=embeddings
         )
-        print(f"[ChromaVectorStore] Stored {len(documents)} chunk(s) in '{self.persist_path}'.")
+        print(f"[ChromaVectorStore] Successfully persisted {len(documents)} chunk(s) to '{self.persist_path}'.")
 
     def query(self, query_embedding: List[List[float]], top_k: int) -> List[Dict[str, Any]]:
         """
@@ -44,7 +45,7 @@ class ChromaVectorStore:
         """
         # Guard against querying an empty collection
         if self.collection.count() == 0:
-            print("⚠️ [ChromaVectorStore] Vector store is currently empty!")
+            print("⚠️ [ChromaVectorStore] Vector store collection is currently empty!")
             return []
 
         results = self.collection.query(

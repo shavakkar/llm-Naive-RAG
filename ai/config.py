@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 import ollama
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 class ExecutionProvider(str, Enum):
     LOCAL = "local"
