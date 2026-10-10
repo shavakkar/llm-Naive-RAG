@@ -100,6 +100,14 @@ class RAGPipeline:
             query_embedding=query_vector,
             top_k=Config.TOP_K_RESULTS
         )
+
+        # Fallback if no documents exist or were retrieved
+        if not retrieved_docs:
+            return {
+                "thoughts": "No documents found in ChromaDB vector store.",
+                "answer": "I do not have any indexed documents to answer your question. Please ingest documents first.",
+                "retrieved_docs": []
+            }
         
         print(f"[Pipeline] Retrieved {len(retrieved_docs)} relevant context passage(s).")
         context_texts = [doc["content"] for doc in retrieved_docs]

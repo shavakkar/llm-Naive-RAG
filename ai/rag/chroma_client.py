@@ -1,22 +1,29 @@
 import uuid
+from pathlib import Path
 from typing import List, Dict, Any
 import chromadb
 
 class ChromaVectorStore:
     """
     Encapsulates database mechanics for ChromaDB storage, including
-    metadata tracking and distance scoring.
+    automatic directory creation, metadata tracking, and distance scoring.
     """
     def __init__(self, persist_dir: str, collection_name: str):
-        self.client = chromadb.PersistentClient(path=persist_dir)
+        self.persist_path = Path(persist_dir)
+        
+        # 1. Guarantee the directory structure exists on disk
+        self.persist_path.mkdir(parents=True, exist_ok=True)
+
+        # 2. Initialize Chroma persistent client
+        self.client = chromadb.PersistentClient(path=str(self.persist_path))
         self.collection = self.client.get_or_create_collection(name=collection_name)
 
     def add_documents(self, documents: List[Dict[str, Any]], embeddings: List[List[float]]) -> None:
         """
-        Expects chunked document dictionaries:
-        [{"content": "...", "metadata": {"source": "...", "chunk_id": 0}}, ...]
+        Stores document chunks and embeddings. Force-persists to disk.
         """
-        if not documents:
+        if not documents or not embeddings:
+            print("⚠️ [ChromaVectorStore] No documents or embeddings provided to store.")
             return
 
         ids = [str(uuid.uuid4()) for _ in documents]
@@ -29,15 +36,20 @@ class ChromaVectorStore:
             metadatas=metadatas,
             embeddings=embeddings
         )
-        print(f"[ChromaVectorStore] Stored {len(documents)} chunk(s) with metadata in ChromaDB.")
+        print(f"[ChromaVectorStore] Stored {len(documents)} chunk(s) in '{self.persist_path}'.")
 
     def query(self, query_embedding: List[List[float]], top_k: int) -> List[Dict[str, Any]]:
         """
-        Returns structured search results including text, metadata, and distance scores.
+        Returns search results. Handles empty collections safely.
         """
+        # Guard against querying an empty collection
+        if self.collection.count() == 0:
+            print("⚠️ [ChromaVectorStore] Vector store is currently empty!")
+            return []
+
         results = self.collection.query(
             query_embeddings=query_embedding,
-            n_results=top_k,
+            n_results=min(top_k, self.collection.count()),  # Avoid requesting more than exists
             include=["documents", "metadatas", "distances"]
         )
 
@@ -51,7 +63,7 @@ class ChromaVectorStore:
                 processed_results.append({
                     "content": doc_text,
                     "metadata": meta,
-                    "distance": round(dist, 4)  # Lower score = higher vector similarity
+                    "distance": round(dist, 4)
                 })
 
         return processed_results

@@ -13,7 +13,7 @@ class LocalDeepSeekGenerator(BaseGenerator):
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
-            dtype=torch.float16,
+            dtype=torch.float32,
             device_map="auto"
         )
 

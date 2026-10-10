@@ -20,7 +20,7 @@ print("Loading Qwen3 embedding model...")
 embed_model = SentenceTransformer(
     QWEN_EMBED_PATH,
     trust_remote_code=True,
-    model_kwargs={"dtype": torch.float16}
+    model_kwargs={"dtype": torch.float32}
 )
 
 def embed_text_local(texts, is_query=False):
@@ -50,7 +50,7 @@ llm_tokenizer = AutoTokenizer.from_pretrained(LLM_PATH)
 
 llm_model = AutoModelForCausalLM.from_pretrained(
     LLM_PATH,
-    dtype=torch.float16,
+    dtype=torch.float32,
     device_map="auto"
 )
 

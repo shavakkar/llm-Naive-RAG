@@ -12,7 +12,7 @@ class LocalQwenEmbedder(BaseEmbedder):
         self.model = SentenceTransformer(
             model_path,
             trust_remote_code=True,
-            model_kwargs={"dtype": torch.float16}
+            model_kwargs={"dtype": torch.float32}
         )
 
     def embed_documents(self, documents: List[str]) -> List[List[float]]:
